@@ -263,12 +263,15 @@ int main(int argc, char *argv[]) {
 }
 
 static const uint8_t MIDI_CC_EX_BENDR = 20;
-static const uint8_t MIDI_CC_EX_LFOS = 21;
-static const uint8_t MIDI_CC_EX_MODT = 22;
+static const uint8_t MIDI_CC_EX_LFOS = 21; // LFO Speed
+static const uint8_t MIDI_CC_EX_MODT = 22; // Modulation Type / LFO Type
 static const uint8_t MIDI_CC_EX_TUNE = 24;
-static const uint8_t MIDI_CC_EX_LFODL = 26;
+static const uint8_t MIDI_CC_EX_LFODL = 26; // LFO Delay
 static const uint8_t MIDI_CC_EX_LOOP = 30;
 static const uint8_t MIDI_CC_EX_PRIO = 33;
+
+static const uint8_t MIDI_CC_EX_MODT_PITCH = 110;
+static const uint8_t MIDI_CC_EX_MODT_VOL = 111;
 
 static const uint8_t EX_LOOP_START = 100;
 static const uint8_t EX_LOOP_END = 101;
@@ -513,7 +516,7 @@ static void midi_read_infile_arguments() {
     bool found_start = false, found_end = false;
     uint32_t loop_start = 0, loop_end = 0;
 
-    uint8_t lsb_rpn = 0, msb_rpn = 0;
+    uint8_t lsb_rpn = 0, msb_rpn = 0, cc110=0, cc111=0;
     uint32_t last_event = 0;
 
     std::vector<bool> volume_init(mf.midi_tracks.size(), false);
@@ -555,6 +558,24 @@ static void midi_read_infile_arguments() {
                             MIDI_CC_EX_BENDR, cev.get_value());
                 } else if (cev.get_controller() == MIDI_CC_MSB_VOLUME) {
                     volume_init[itrk] = true;
+                } else if (cev.get_controller() == MIDI_CC_EX_MODT_PITCH) { // New addition. Seems to work.
+                    cc110 = cev.get_value();
+                } else if (cev.get_controller() == MIDI_CC_EX_MODT_VOL) {
+										cc111 = cev.get_value();
+                    // found a mod type change command
+										if (cc110==0 && cc111==0){
+											mtrk[ievt] = std::make_unique<controller_message_midi_event>(
+															cev.ticks, cev.channel(),
+															MIDI_CC_EX_MODT, 0);
+										} else if (cc110==127 && cc111==127){
+											mtrk[ievt] = std::make_unique<controller_message_midi_event>(
+															cev.ticks, cev.channel(),
+															MIDI_CC_EX_MODT, 1);
+										} else if (cc110==127 && cc111==0){
+											mtrk[ievt] = std::make_unique<controller_message_midi_event>(
+															cev.ticks, cev.channel(),
+															MIDI_CC_EX_MODT, 2);
+										}
                 }
                 continue;
             } else if (typeid(ev) == typeid(noteoff_message_midi_event)) {
